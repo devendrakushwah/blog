@@ -1,6 +1,6 @@
 ---
-title: "Efficient Go Testing with Testcontainers"
-description: "Learn how to efficiently do integration testing in Go using Testcontainers. This blog walks you through setting up a realistic testing environment, demonstrating usage of Testcontainers"
+title: "Level Up Your Go Testing : Dive into Test Containers"
+description: "Learn how to efficiently do integration testing in Go using Testcontainers and increase tests confidence. This blog walks you through setting up a realistic testing environment, demonstrating usage of Testcontainers"
 date: 2023-09-10
 image: banner.png
 categories:
@@ -10,7 +10,7 @@ tags:
   - testcontainers
 ---
 
-# Efficient Go Testing with Testcontainers
+# Level Up Your Go Testing : Dive into Test Containers
 
 ## Introduction
 Testing is an essential part of developing a software, but it often involves setting up testing environment with dependencies like databases, message brokers, etc. making it very complex to test the applications. In this blog, we will explore how Testcontainers can help in testing applications in Golang without doing complex setup.
