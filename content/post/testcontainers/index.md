@@ -44,12 +44,9 @@ go get github.com/testcontainers/testcontainers-go
 Let's write a basic OrderService
 ```go
 // order_service.go
-package order
+package testcontainers
 
-import (
-	"database/sql"
-	"fmt"
-)
+import "database/sql"
 
 type OrderService struct {
 	db *sql.DB
@@ -59,24 +56,25 @@ func NewOrderService(db *sql.DB) *OrderService {
 	return &OrderService{db: db}
 }
 
-func (o *OrderService) AddOrder(productID int, quantity int) error {
-	_, err := s.db.Exec("INSERT INTO order (product_id, quantity) VALUES (?, ?)", productID, quantity)
+func (s *OrderService) AddOrder(productID int, quantity int) error {
+	_, err := s.db.Exec("INSERT INTO orders (product_id, quantity) VALUES (?, ?)", productID, quantity)
 	return err
 }
 
 func (s *OrderService) GetOrder(id int) (int, int, error) {
 	var productID, quantity int
-	err := s.db.QueryRow("SELECT product_id, quantity FROM order WHERE id=?", id).Scan(&productID, &quantity)
+	err := s.db.QueryRow("SELECT product_id, quantity FROM orders WHERE id=?", id).Scan(&productID, &quantity)
 	if err != nil {
 		return 0, 0, err
 	}
 	return productID, quantity, nil
 }
+
 ```
 And the tests,
 ```go
-// order_service.test.go
-package order
+// order_service_test.go
+package testcontainers
 
 import (
 	"context"
@@ -84,24 +82,29 @@ import (
 	"fmt"
 	"testing"
 
+	_ "github.com/go-sql-driver/mysql" // mysql driver import needed
+	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestOrderService(t *testing.T) {
 	ctx := context.Background()
 
 	// Start a MySQL container
-	mysqlContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		Image:        "mysql:latest",
+	request := testcontainers.ContainerRequest{
+		Image:        "mysql:5.7.43",
 		ExposedPorts: []string{"3306/tcp"},
 		Env: map[string]string{
 			"MYSQL_ROOT_PASSWORD": "password",
 		},
 		WaitingFor: wait.ForLog("port: 3306  MySQL Community Server"),
+	}
+	mysqlContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: request,
+		Started:          true,
 	})
+
 	assert.NoError(t, err)
 	defer mysqlContainer.Terminate(ctx)
 
@@ -112,16 +115,19 @@ func TestOrderService(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create a database connection
-	dsn := fmt.Sprintf("root:password@tcp(%s:%s)/order", host, port.Port())
+	dsn := fmt.Sprintf("root:password@tcp(%s:%s)/", host, port.Port())
 	db, err := sql.Open("mysql", dsn)
 	assert.NoError(t, err)
 	defer db.Close()
+
+	// Create database and table
+	createDatabaseAndTable(db)
 
 	// Initialize and use the order service
 	orderService := NewOrderService(db)
 
 	// Add an order
-	err = orderService.AddOrder(100, 2);
+	err = orderService.AddOrder(100, 2)
 	assert.NoError(t, err)
 
 	// Get the added order
@@ -131,10 +137,41 @@ func TestOrderService(t *testing.T) {
 	assert.Equal(t, 2, quantity)
 }
 
+func createDatabaseAndTable(db *sql.DB) {
+	db.Exec(`CREATE DATABASE IF NOT EXISTS orders;`)
+	db.Exec(`USE orders;`)
+	db.Exec(`CREATE TABLE IF NOT EXISTS orders ( id INT AUTO_INCREMENT PRIMARY KEY, product_id INT, quantity INT);`)
+}
 ```
-
+Test output
+```bash
+=== RUN   TestOrderService
+2023/09/12 23:41:58 github.com/testcontainers/testcontainers-go - Connected to docker: 
+  Server Version: 24.0.6
+  API Version: 1.43
+  Operating System: Docker Desktop
+  Total Memory: 7854 MB
+  Resolved Docker Host: unix:///var/run/docker.sock
+  Resolved Docker Socket Path: /var/run/docker.sock
+2023/09/12 23:42:10 🐳 Creating container for image docker.io/testcontainers/ryuk:0.5.1
+2023/09/12 23:42:10 ✅ Container created: f8adf3d96d20
+2023/09/12 23:42:10 🐳 Starting container: f8adf3d96d20
+2023/09/12 23:42:11 ✅ Container started: f8adf3d96d20
+2023/09/12 23:42:11 🚧 Waiting for container id f8adf3d96d20 image: docker.io/testcontainers/ryuk:0.5.1. Waiting for: &{Port:8080/tcp timeout:<nil> PollInterval:100ms}
+2023/09/12 23:42:11 🐳 Creating container for image mysql:5.7.43
+2023/09/12 23:42:11 ✅ Container created: 327036e1fd9b
+2023/09/12 23:42:11 🐳 Starting container: 327036e1fd9b
+2023/09/12 23:42:11 ✅ Container started: 327036e1fd9b
+2023/09/12 23:42:11 🚧 Waiting for container id 327036e1fd9b image: mysql:5.7.43. Waiting for: &{timeout:<nil> Log:port: 3306  MySQL Community Server Occurrence:1 PollInterval:100ms}
+2023/09/12 23:42:23 🐳 Terminating container: 327036e1fd9b
+2023/09/12 23:42:24 🚫 Container terminated: 327036e1fd9b
+--- PASS: TestOrderService (25.62s)
+PASS
+```
 ## Conclusion
 Testcontainers are a game-changer in the world of testing, not only for databases but also for services like Kafka, Redis, Vault and more. They provide a consistent and efficient way to set up testing environments, making integration and end-to-end testing more manageable. By incorporating Testcontainers into your Golang testing toolkit, you can improve the reliability and quality of your code, ensuring that your applications run smoothly in real-world scenarios.
+
+Happy testing! 💣💥
 
 ## References
 
